@@ -1,3 +1,6 @@
+# Set to automatically break when the API version is incremented.
+# Make sure you check the new output to see what data has changed before updating.
+
 SHIFT_API_SCHEMA = {
     "type": "array",
     "items": {

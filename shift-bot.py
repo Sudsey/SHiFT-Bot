@@ -1,6 +1,8 @@
 import discord
+import asyncio
 
 from datetime import datetime, timezone
+import traceback
 
 from shift.helper import log, get_shift_api_data, build_embed
 from shift.types import ShiftDataUnavailableError, ShiftDataInvalidError
@@ -10,35 +12,72 @@ BORDERLANDS_GUILD_ID = 132671445376565248
 NEWS_CHANNEL_ID = 749485616621813841
 NEWS_ROLE_ID = 624528614330859520
 
+# Every 15 minutes
+UPDATE_DELAY = 900
+
 
 class ShiftBot(discord.Client):
+    __api_responsive: bool
+
+    __last_updated: datetime
+    __update_codes_task: asyncio.Task
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # self.__last_update = datetime.now(timezone.utc)
-        self.__last_update = datetime.fromtimestamp(0, timezone.utc)
+        self.__api_responsive = True
 
     async def on_guild_available(self, guild):
         if guild.id != BORDERLANDS_GUILD_ID:
             return
 
-        try:
-            data = get_shift_api_data()
-        except ShiftDataUnavailableError:
-            log("Could not contact API. Ignoring this run.")
-            return
-        except ShiftDataInvalidError:
-            log("Received invalid data from API. Check for updates. Exiting.")
-            await self.close()
-            raise
+        self.__reset_last_updated()
+        self.__update_codes_task = self.loop.create_task(self.__update_codes())
 
-        if data.metadata.updated <= self.__last_update:
+    def __reset_last_updated(self):
+        self.__last_updated = datetime.now(timezone.utc)
+
+    async def __update_codes(self):
+        await self.wait_until_ready()
+
+        while True:
+            # We need to log exceptions here because otherwise the Task eats it
+            # noinspection PyBroadException
+            try:
+                await self.__do_update_codes()
+            except ShiftDataInvalidError:
+                log(f'Received invalid data from API. Check for updates. Exiting.\n\n{traceback.format_exc()}')
+                break
+            except Exception:
+                log(f'Unexpected error. Exiting.\n\n{traceback.format_exc()}')
+                break
+
+            await asyncio.sleep(UPDATE_DELAY)
+
+        await self.close()
+
+    async def __do_update_codes(self):
+        try:
+            data = await get_shift_api_data()
+        except ShiftDataUnavailableError as e:
+            if self.__api_responsive:
+                log(f'Could not contact API. Will log when connection is reestablished.\n\t{e}')
+                self.__api_responsive = False
             return
+
+        if not self.__api_responsive:
+            log('Connection reestablished.')
+            self.__api_responsive = True
 
         channel = self.get_channel(NEWS_CHANNEL_ID)
-        message = await channel.send(embed=build_embed(data.codes[0]))
-        await message.publish()
-        await channel.send(f'<@&{NEWS_ROLE_ID}>')
+
+        for code in data.codes:
+            if self.__last_updated < code.time_added:
+                message = await channel.send(embed=build_embed(code))
+                await message.publish()
+                await channel.send(f'<@&{NEWS_ROLE_ID}>')
+
+        self.__reset_last_updated()
 
 
 def main():

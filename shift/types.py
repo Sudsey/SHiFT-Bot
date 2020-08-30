@@ -6,7 +6,7 @@ from datetime import datetime
 
 @dataclass
 class ShiftMetadata:
-    updated: datetime
+    pass
 
 
 @dataclass
@@ -15,6 +15,7 @@ class ShiftCode:
     game: str
     platform: str
     reward: str
+    time_added: datetime
     expires: Optional[datetime]
     source: str
 

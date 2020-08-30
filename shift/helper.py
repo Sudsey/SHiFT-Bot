@@ -2,7 +2,7 @@ import discord
 from typing import List
 
 from datetime import datetime
-import requests
+import aiohttp
 import jsonschema
 
 from shift.types import ShiftData, ShiftMetadata, ShiftCode, ShiftDataUnavailableError, ShiftDataInvalidError
@@ -18,20 +18,17 @@ def log(text: str) -> None:
     print(f'[{datetime.now()}] {text}')
 
 
-def get_shift_api_data() -> ShiftData:
-    response = requests.get(SHIFT_API_URL)
-    if response.status_code != 200:
-        raise ShiftDataUnavailableError
-
-    try:
-        json = response.json()
-    except ValueError:
-        raise ShiftDataUnavailableError
+async def get_shift_api_data() -> ShiftData:
+    async with aiohttp.ClientSession() as session:
+        try:
+            json = await __get_shift_api_json(session)
+        except aiohttp.ServerConnectionError as e:
+            raise ShiftDataUnavailableError from e
 
     try:
         jsonschema.validate(json, SHIFT_API_SCHEMA)
-    except jsonschema.ValidationError:
-        raise ShiftDataInvalidError
+    except jsonschema.ValidationError as e:
+        raise ShiftDataInvalidError from e
 
     data = json[0]
 
@@ -43,9 +40,10 @@ def get_shift_api_data() -> ShiftData:
 
 def build_embed(code: ShiftCode) -> discord.Embed:
     if code.expires is not None:
-        expires = datetime.strftime(code.expires, "%e %B, %Y")
+        # The %e option is seemingly nonstandard and prints the day without the trailing 0.
+        expires = datetime.strftime(code.expires, '%e %B, %Y')
     else:
-        expires = "Unknown"
+        expires = 'Unknown'
 
     title = f'{GOLDEN_KEY_EMOJI} {code.game}: {code.reward}'
     description = (f'Platform: {code.platform}\n'
@@ -57,15 +55,23 @@ def build_embed(code: ShiftCode) -> discord.Embed:
     return discord.Embed(title=title, description=description, colour=colour)
 
 
-def __parse_shift_metadata(json) -> ShiftMetadata:
-    try:
-        updated = datetime.strptime(json['generated']['human'], '%a, %d %b %Y %H:%M:%S %z')
-    except ValueError:
-        raise ShiftDataInvalidError
+async def __get_shift_api_json(session: aiohttp.ClientSession):
+    async with session.get(SHIFT_API_URL) as response:
+        if response.status != 200:
+            raise ShiftDataUnavailableError(f'API server responded with non-200 error code: {response.status}.')
 
-    return ShiftMetadata(
-        updated=updated
-    )
+        try:
+            # Ignore content type checks, they're useless for actual integrity.
+            # We check the JSON formatting later anyway.
+            json = await response.json(content_type=None)
+        except json.decoder.JSONDecodeError as e:
+            raise ShiftDataInvalidError from e
+
+    return json
+
+
+def __parse_shift_metadata(json) -> ShiftMetadata:
+    return ShiftMetadata()
 
 
 def __parse_shift_codes(json) -> List[ShiftCode]:
@@ -73,19 +79,22 @@ def __parse_shift_codes(json) -> List[ShiftCode]:
 
 
 def __parse_shift_code(json) -> ShiftCode:
-    if json['expires'] == 'Unknown':
-        expires = None
-    else:
-        try:
+    try:
+        time_added = datetime.strptime(json['archived'], '%d %b %Y %H:%M:%S %z')
+
+        if json['expires'] == 'Unknown':
+            expires = None
+        else:
             expires = datetime.strptime(json['expires'], '%d %b %Y %H:%M:%S %z')
-        except ValueError:
-            raise ShiftDataInvalidError
+    except ValueError as e:
+        raise ShiftDataInvalidError from e
 
     return ShiftCode(
         code=json['code'],
         game=json['game'],
         platform=json['platform'],
         reward=json['reward'],
+        time_added=time_added,
         expires=expires,
         source=json['link']
     )
