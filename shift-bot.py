@@ -36,7 +36,9 @@ class ShiftBot(discord.Client):
             return
 
         channel = self.get_channel(NEWS_CHANNEL_ID)
-        await channel.send(embed=build_embed(data.codes[0]))
+        message = await channel.send(embed=build_embed(data.codes[0]))
+        await message.publish()
+        await channel.send(f'<@&{NEWS_ROLE_ID}>')
 
 
 def main():
