@@ -42,9 +42,14 @@ def get_shift_api_data() -> ShiftData:
 
 
 def build_embed(code: ShiftCode) -> discord.Embed:
+    if code.expires is not None:
+        expires = datetime.strftime(code.expires, "%e %B, %Y")
+    else:
+        expires = "Unknown"
+
     title = f'{GOLDEN_KEY_EMOJI} {code.game}: {code.reward}'
     description = (f'Platform: {code.platform}\n'
-                   f'Expires: {datetime.strftime(code.expires, "%e %B, %Y")}.```\n'
+                   f'Expires: {expires}.```\n'
                    f'{code.code}```Redeem on the [website](https://shift.gearboxsoftware.com/rewards) or in game.\n\n'
                    f'[Source]({code.source})')
     colour = discord.Colour(0xF4C410)
