@@ -1,11 +1,10 @@
 import discord
 import asyncio
 
-from datetime import datetime, timezone
 import traceback
 
-from shift.helper import log, get_shift_api_data, build_embed
-from shift.types import ShiftDataUnavailableError, ShiftDataInvalidError
+from shift.helper import log, load_history, save_history, get_shift_api_data, build_embed
+from shift.types import PostHistory, ShiftDataUnavailableError, ShiftDataInvalidError
 
 
 BORDERLANDS_GUILD_ID = 132671445376565248
@@ -17,25 +16,20 @@ UPDATE_DELAY = 900
 
 
 class ShiftBot(discord.Client):
+    __history: PostHistory
     __api_responsive: bool
 
-    __last_updated: datetime
     __update_codes_task: asyncio.Task
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self.__history = load_history()
         self.__api_responsive = True
 
     async def on_guild_available(self, guild):
-        if guild.id != BORDERLANDS_GUILD_ID:
-            return
-
-        self.__reset_last_updated()
-        self.__update_codes_task = self.loop.create_task(self.__update_codes())
-
-    def __reset_last_updated(self):
-        self.__last_updated = datetime.now(timezone.utc)
+        if guild.id == BORDERLANDS_GUILD_ID:
+            self.__update_codes_task = self.loop.create_task(self.__update_codes())
 
     async def __update_codes(self):
         await self.wait_until_ready()
@@ -72,12 +66,14 @@ class ShiftBot(discord.Client):
         channel = self.get_channel(NEWS_CHANNEL_ID)
 
         for code in data.codes:
-            if self.__last_updated < code.time_added:
+            if not (code.time_added < self.__history.start_time or code.code in self.__history.codes):
                 message = await channel.send(embed=build_embed(code))
                 await message.publish()
                 await channel.send(f'<@&{NEWS_ROLE_ID}>')
 
-        self.__reset_last_updated()
+                self.__history.codes.add(code.code)
+
+        save_history(self.__history)
 
 
 def main():

@@ -1,11 +1,11 @@
 import discord
-from typing import List
 
 from datetime import datetime
 import aiohttp
 import jsonschema
+import json
 
-from shift.types import ShiftData, ShiftMetadata, ShiftCode, ShiftDataUnavailableError, ShiftDataInvalidError
+from shift.types import PostHistory, ShiftData, ShiftCode, ShiftDataUnavailableError, ShiftDataInvalidError
 from shift.schema import SHIFT_API_SCHEMA
 
 
@@ -21,21 +21,29 @@ def log(text: str) -> None:
 async def get_shift_api_data() -> ShiftData:
     async with aiohttp.ClientSession() as session:
         try:
-            json = await __get_shift_api_json(session)
+            data = await __get_shift_api_json(session)
         except aiohttp.ServerConnectionError as e:
             raise ShiftDataUnavailableError from e
 
     try:
-        jsonschema.validate(json, SHIFT_API_SCHEMA)
+        jsonschema.validate(data, SHIFT_API_SCHEMA)
     except jsonschema.ValidationError as e:
         raise ShiftDataInvalidError from e
 
-    data = json[0]
+    return ShiftData.parse_json(data[0])
 
-    return ShiftData(
-        metadata=__parse_shift_metadata(data['meta']),
-        codes=__parse_shift_codes(data['codes'])
-    )
+
+def load_history() -> PostHistory:
+    try:
+        with open('history', 'r') as f:
+            return PostHistory.parse_json(json.loads(f.read()))
+    except FileNotFoundError:
+        return PostHistory()
+
+
+def save_history(history: PostHistory):
+    with open('history', 'w') as f:
+        f.write(history.get_json())
 
 
 def build_embed(code: ShiftCode) -> discord.Embed:
@@ -63,38 +71,8 @@ async def __get_shift_api_json(session: aiohttp.ClientSession):
         try:
             # Ignore content type checks, they're useless for actual integrity.
             # We check the JSON formatting later anyway.
-            json = await response.json(content_type=None)
+            data = await response.json(content_type=None)
         except json.decoder.JSONDecodeError as e:
             raise ShiftDataInvalidError from e
 
-    return json
-
-
-def __parse_shift_metadata(json) -> ShiftMetadata:
-    return ShiftMetadata()
-
-
-def __parse_shift_codes(json) -> List[ShiftCode]:
-    return [__parse_shift_code(code_json) for code_json in json]
-
-
-def __parse_shift_code(json) -> ShiftCode:
-    try:
-        time_added = datetime.strptime(json['archived'], '%d %b %Y %H:%M:%S %z')
-
-        if json['expires'] == 'Unknown':
-            expires = None
-        else:
-            expires = datetime.strptime(json['expires'], '%d %b %Y %H:%M:%S %z')
-    except ValueError as e:
-        raise ShiftDataInvalidError from e
-
-    return ShiftCode(
-        code=json['code'],
-        game=json['game'],
-        platform=json['platform'],
-        reward=json['reward'],
-        time_added=time_added,
-        expires=expires,
-        source=json['link']
-    )
+    return data

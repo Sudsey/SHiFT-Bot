@@ -1,12 +1,59 @@
-from typing import Optional, List
+from typing import Set, Optional, List
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
+import jsonschema
+import json
+
+from shift.schema import POST_HISTORY_SCHEMA, SHIFT_API_DATA_SCHEMA, SHIFT_API_METADATA_SCHEMA, SHIFT_API_CODE_SCHEMA
+
+
+class PostHistory:
+    start_time: datetime
+    codes: Set[str]
+
+    def __init__(self, start_time: datetime = None, codes: Set[str] = None):
+        if start_time is None:
+            start_time = datetime.now(timezone.utc)
+        if codes is None:
+            codes = set()
+
+        self.start_time = start_time
+        self.codes = codes
+
+    @staticmethod
+    def parse_json(data) -> 'PostHistory':
+        try:
+            jsonschema.validate(data, POST_HISTORY_SCHEMA)
+        except jsonschema.ValidationError as e:
+            raise PostHistoryInvalidError from e
+
+        try:
+            start_time = datetime.strptime(data['start_time'], '%d %b %Y %H:%M:%S %z')
+        except ValueError as e:
+            raise PostHistoryInvalidError from e
+
+        codes = set(data['codes'])
+
+        return PostHistory(start_time=start_time, codes=codes)
+
+    def get_json(self):
+        start_time = datetime.strftime(self.start_time, '%d %b %Y %H:%M:%S %z')
+        codes = list(self.codes)
+
+        return json.dumps({'start_time': start_time, 'codes': codes})
 
 
 @dataclass
 class ShiftMetadata:
-    pass
+    @staticmethod
+    def parse_json(data) -> 'ShiftMetadata':
+        try:
+            jsonschema.validate(data, SHIFT_API_METADATA_SCHEMA)
+        except jsonschema.ValidationError as e:
+            raise ShiftDataInvalidError from e
+
+        return ShiftMetadata()
 
 
 @dataclass
@@ -19,11 +66,54 @@ class ShiftCode:
     expires: Optional[datetime]
     source: str
 
+    @staticmethod
+    def parse_json(data) -> 'ShiftCode':
+        try:
+            jsonschema.validate(data, SHIFT_API_CODE_SCHEMA)
+        except jsonschema.ValidationError as e:
+            raise ShiftDataInvalidError from e
+
+        try:
+            time_added = datetime.strptime(data['archived'], '%d %b %Y %H:%M:%S %z')
+
+            if data['expires'] == 'Unknown':
+                expires = None
+            else:
+                expires = datetime.strptime(data['expires'], '%d %b %Y %H:%M:%S %z')
+        except ValueError as e:
+            raise ShiftDataInvalidError from e
+
+        return ShiftCode(
+            code=data['code'],
+            game=data['game'],
+            platform=data['platform'],
+            reward=data['reward'],
+            time_added=time_added,
+            expires=expires,
+            source=data['link']
+        )
+
 
 @dataclass
 class ShiftData:
     metadata: ShiftMetadata
     codes: List[ShiftCode]
+
+    @staticmethod
+    def parse_json(data) -> 'ShiftData':
+        try:
+            jsonschema.validate(data, SHIFT_API_DATA_SCHEMA)
+        except jsonschema.ValidationError as e:
+            raise ShiftDataInvalidError from e
+
+        return ShiftData(
+            metadata=ShiftMetadata.parse_json(data['meta']),
+            codes=[ShiftCode.parse_json(code_json) for code_json in data['codes']]
+        )
+
+
+class PostHistoryInvalidError(Exception):
+    pass
 
 
 class ShiftDataUnavailableError(Exception):
