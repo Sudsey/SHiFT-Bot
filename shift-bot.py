@@ -7,6 +7,7 @@ import traceback
 from shift.helper import log, get_shift_api_data, load_history, save_history, parse_manual_code, build_embed
 from shift.types import PostHistory, ShiftCode, ShiftDataUnavailableError
 
+
 BORDERLANDS_GUILD_ID = 132671445376565248
 COMMAND_CHANNEL_ID = 556796818600755229
 NEWS_CHANNEL_ID = 749485616621813841
@@ -40,9 +41,9 @@ class ShiftBot(discord.Client):
         command = [''.join(match) for match in re.findall(r'"(.+?)"|(\S+)', message.content)]
 
         try:
-            if command[0] == '$post' and len(command) >= 6:
+            if len(command) >= 6 and command[0] == '$post':
                 await self.__post_code(parse_manual_code(command[1:]))
-            elif command[0] == '$edit' and len(command) >= 7:
+            elif len(command) >= 7 and command[0] == '$edit':
                 post = await self.__news_channel.fetch_message(int(command[1]))
                 if post is None:
                     message.channel.send("Post ID does not exist.")
