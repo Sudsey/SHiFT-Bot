@@ -14,7 +14,7 @@ SHIFT_API_URL = 'https://shift.orcicorn.com/shift-code/index.json'
 GOLDEN_KEY_EMOJI = '<:GoldenKey:273763771929853962>'
 
 
-def log(text: str) -> None:
+def log(text: str):
     print(f'[{datetime.now()}] {text}')
 
 

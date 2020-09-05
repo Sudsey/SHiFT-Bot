@@ -4,7 +4,7 @@ import asyncio
 import traceback
 
 from shift.helper import log, load_history, save_history, get_shift_api_data, build_embed
-from shift.types import PostHistory, ShiftDataUnavailableError, ShiftDataInvalidError
+from shift.types import PostHistory, ShiftDataUnavailableError
 
 
 BORDERLANDS_GUILD_ID = 132671445376565248
@@ -29,33 +29,30 @@ class ShiftBot(discord.Client):
 
     async def on_guild_available(self, guild):
         if guild.id == BORDERLANDS_GUILD_ID:
-            self.__update_codes_task = self.loop.create_task(self.__update_codes())
+            self.__update_codes_task = self.loop.create_task(self.__update_codes_loop())
 
-    async def __update_codes(self):
+    async def __update_codes_loop(self):
         await self.wait_until_ready()
 
         while True:
             # We need to log exceptions here because otherwise the Task eats it
             # noinspection PyBroadException
             try:
-                await self.__do_update_codes()
-            except ShiftDataInvalidError:
-                log(f'Received invalid data from API. Check for updates. Exiting.\n\n{traceback.format_exc()}')
-                break
+                await self.__update_codes()
             except Exception:
-                log(f'Unexpected error. Exiting.\n\n{traceback.format_exc()}')
+                log(f'Error occurred in Task. Exiting.\n{traceback.format_exc()}')
                 break
 
             await asyncio.sleep(UPDATE_DELAY)
 
         await self.close()
 
-    async def __do_update_codes(self):
+    async def __update_codes(self):
         try:
             data = await get_shift_api_data()
         except ShiftDataUnavailableError as e:
             if self.__api_responsive:
-                log(f'Could not contact API. Will log when connection is reestablished.\n\t{e}')
+                log(f'Could not contact API. Will log when connection is reestablished.\n{traceback.format_exc()}')
                 self.__api_responsive = False
             return
 

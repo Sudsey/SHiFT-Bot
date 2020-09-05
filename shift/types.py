@@ -113,12 +113,15 @@ class ShiftData:
 
 
 class PostHistoryInvalidError(Exception):
-    pass
+    def __init__(self, message='History file was corrupt. Repair or delete to regenerate.', *args, **kwargs):
+        super().__init__(message, args, kwargs)
 
 
 class ShiftDataUnavailableError(Exception):
-    pass
+    def __init__(self, message='Could not contact API.', *args, **kwargs):
+        super().__init__(message, args, kwargs)
 
 
 class ShiftDataInvalidError(Exception):
-    pass
+    def __init__(self, message='Received invalid data from API. Check for updates.', *args, **kwargs):
+        super().__init__(message, args, kwargs)
