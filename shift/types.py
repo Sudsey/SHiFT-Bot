@@ -64,7 +64,7 @@ class ShiftCode:
     reward: str
     time_added: datetime
     expires: Optional[datetime]
-    source: str
+    source: Optional[str]
 
     @staticmethod
     def parse_json(data) -> 'ShiftCode':

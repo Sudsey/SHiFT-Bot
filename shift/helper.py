@@ -1,6 +1,8 @@
 import discord
 
-from datetime import datetime
+from typing import List
+from datetime import datetime, timezone
+import dateutil.parser
 import aiohttp
 import jsonschema
 import json
@@ -46,6 +48,20 @@ def save_history(history: PostHistory):
         f.write(history.get_json())
 
 
+def parse_manual_code(args: List[str]) -> ShiftCode:
+    expires = dateutil.parser.parse(args[3])
+
+    return ShiftCode(
+        game=args[0],
+        reward=args[1],
+        platform=args[2],
+        expires=expires,
+        code=args[4],
+        time_added=datetime.now(timezone.utc),
+        source=None
+    )
+
+
 def build_embed(code: ShiftCode) -> discord.Embed:
     if code.expires is not None:
         # The %e option is seemingly nonstandard and prints the day without the trailing 0.
@@ -56,8 +72,9 @@ def build_embed(code: ShiftCode) -> discord.Embed:
     title = f'{GOLDEN_KEY_EMOJI} {code.game}: {code.reward}'
     description = (f'Platform: {code.platform}\n'
                    f'Expires: {expires}.```\n'
-                   f'{code.code}```Redeem on the [website](https://shift.gearboxsoftware.com/rewards) or in game.\n\n'
-                   f'[Source]({code.source})')
+                   f'{code.code}```Redeem on the [website](https://shift.gearboxsoftware.com/rewards) or in game.')
+    if code.source is not None:
+        description += f'\n\n[Source]({code.source})'
     colour = discord.Colour(0xF4C410)
 
     return discord.Embed(title=title, description=description, colour=colour)

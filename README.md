@@ -8,6 +8,6 @@ Thanks to Orangespire for the idea and continued support.
 
 ## Usage
 
-Currently requires the discord.py, jsonschema and dataclasses libraries to be installed (I'll likely package this into a Pipenv later).
+Currently requires the discord.py, dateutil, jsonschema and dataclasses libraries to be installed (I'll likely package this into a Pipenv later).
 
 Your API key must be placed in a file called api_key. For the time being you'll need to edit the IDs and embed formats in the source code to suit you.
