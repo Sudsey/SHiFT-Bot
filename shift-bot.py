@@ -90,8 +90,7 @@ class ShiftBot(discord.Client):
 
     async def __post_code(self, code: ShiftCode):
         message = await self.__news_channel.send(embed=build_embed(code))
-        # Leaving this disabled for now, in case edits need to be made before being sent out.
-        # await message.publish()
+        await message.publish()
         await self.__news_channel.send(f'<@&{NEWS_ROLE_ID}>')
 
         self.__history.codes.add(code.code)
