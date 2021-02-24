@@ -106,9 +106,11 @@ class ShiftData:
         except jsonschema.ValidationError as e:
             raise ShiftDataInvalidError from e
 
+        raw_codes = [ShiftCode.parse_json(code_json) for code_json in data['codes']]
+
         return ShiftData(
             metadata=ShiftMetadata.parse_json(data['meta']),
-            codes=[ShiftCode.parse_json(code_json) for code_json in data['codes']]
+            codes=[code for code in raw_codes if code.game.startswith('Borderlands')]
         )
 
 
