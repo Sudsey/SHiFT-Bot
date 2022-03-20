@@ -49,7 +49,10 @@ def save_history(history: PostHistory):
 
 
 def parse_manual_code(args: List[str]) -> ShiftCode:
-    expires = dateutil.parser.parse(args[3])
+    if args[3] == 'Unknown':
+        expires = None
+    else:
+        expires = dateutil.parser.parse(args[3])
 
     return ShiftCode(
         game=args[0],
