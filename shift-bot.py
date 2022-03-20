@@ -43,6 +43,8 @@ class ShiftBot(discord.Client):
         try:
             if len(command) >= 6 and command[0] == '$post':
                 await self.__post_code(parse_manual_code(command[1:]))
+
+                save_history(self.__history)
             elif len(command) >= 7 and command[0] == '$edit':
                 post = await self.__news_channel.fetch_message(int(command[1]))
                 if post is None:
@@ -50,6 +52,8 @@ class ShiftBot(discord.Client):
                     return
 
                 await self.__edit_code(post, parse_manual_code(command[2:]))
+
+                save_history(self.__history)
         except ValueError:
             await message.channel.send("Arguments in unrecognised format.")
 
