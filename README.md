@@ -8,4 +8,4 @@ Thanks to Orangespire for the idea and continued support.
 
 ## Usage
 
-Designed for Python 3.10. Your API key must be placed in a file called api_key. For the time being you'll need to edit the IDs and embed formats in the source code to suit you.
+Designed for Python 3.10. Your API key must be placed in the environment variable SHIFT_BOT_API_KEY. For the time being you'll need to edit the IDs and embed formats in the source code to suit you.

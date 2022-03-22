@@ -106,8 +106,10 @@ class ShiftBot(discord.Client):
 
 
 def main():
-    with open('api_key', 'r') as f:
-        api_key = f.read().replace('\n', '')
+    api_key = os.environ.get('SHIFT_BOT_API_KEY')
+    if not api_key:
+        log('API key must be specified as SHIFT_BOT_API_KEY environment variable.')
+        return
 
     client = ShiftBot()
     client.run(api_key)
