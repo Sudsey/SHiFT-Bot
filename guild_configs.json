@@ -1,0 +1,18 @@
+[
+  {
+    "game_pattern": "Borderlands",
+    "guild_id": 132671445376565248,
+    "command_channel_id": 556796818600755229,
+    "news_channel_id": 563699841377763348,
+    "news_role_id": 624528614330859520,
+    "embed_emoji": "<:GoldenKey:273763771929853962>"
+  },
+  {
+    "game_pattern": "Wonderlands",
+    "guild_id": 925077140720975883,
+    "command_channel_id": 925077141748580422,
+    "news_channel_id": 955878508251463680,
+    "news_role_id": 955878911244378144,
+    "embed_emoji": "<:GoldenKey:273763771929853962>"
+  }
+]

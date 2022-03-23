@@ -1,3 +1,21 @@
+GUILD_CONFIGS_SCHEMA = {
+    "type": "array",
+    "items": {}
+}
+
+GUILD_CONFIG_SCHEMA = {
+    "type": "object",
+    "required": ["guild_id", "news_channel_id"],
+    "properties": {
+        "game_pattern": {"type": "string"},
+        "guild_id": {"type": "integer"},
+        "command_channel_id": {"type": "integer"},
+        "news_channel_id": {"type": "integer"},
+        "news_role_id": {"type": "integer"},
+        "embed_emoji": {"type": "string"},
+    }
+}
+
 POST_HISTORY_SCHEMA = {
     "type": "object",
     "required": ["start_time", "codes"],

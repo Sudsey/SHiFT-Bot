@@ -7,13 +7,12 @@ import aiohttp
 import jsonschema
 import json
 
-from shift.types import PostHistory, ShiftData, ShiftCode, ShiftDataUnavailableError, ShiftDataInvalidError
-from shift.schema import SHIFT_API_SCHEMA
+from shift.types import GuildConfig, PostHistory, ShiftData, ShiftCode, GuildConfigsInvalidError, \
+    ShiftDataUnavailableError, ShiftDataInvalidError
+from shift.schema import GUILD_CONFIGS_SCHEMA, SHIFT_API_SCHEMA
 
 
 SHIFT_API_URL = 'https://shift.orcicorn.com/shift-code/index.json'
-
-GOLDEN_KEY_EMOJI = '<:GoldenKey:273763771929853962>'
 
 
 def log(text: str):
@@ -33,6 +32,21 @@ async def get_shift_api_data() -> ShiftData:
         raise ShiftDataInvalidError from e
 
     return ShiftData.parse_json(data[0])
+
+
+def load_guild_configs() -> List[GuildConfig]:
+    try:
+        with open('guild_configs.json', 'r') as f:
+            data = json.loads(f.read())
+    except FileNotFoundError:
+        return []
+
+    try:
+        jsonschema.validate(data, GUILD_CONFIGS_SCHEMA)
+    except jsonschema.ValidationError as e:
+        raise GuildConfigsInvalidError from e
+
+    return [GuildConfig.parse_json(config) for config in data]
 
 
 def load_history() -> PostHistory:
@@ -65,16 +79,16 @@ def parse_manual_code(args: List[str]) -> ShiftCode:
     )
 
 
-def build_embed(code: ShiftCode) -> discord.Embed:
+def build_embed(emoji: str, code: ShiftCode) -> discord.Embed:
     if code.expires is not None:
         # The %e option is seemingly nonstandard and prints the day without the trailing 0.
         expires = datetime.strftime(code.expires, '%e %B, %Y')
     else:
         expires = 'Unknown'
 
-    title = f'{GOLDEN_KEY_EMOJI} {code.game}: {code.reward}'
+    title = f'{emoji} {code.game}: {code.reward}'
     description = (f'Platform: {code.platform}\n'
-                   f'Expires: {expires}.```\n'
+                   f'Expires: {expires}```\n'
                    f'{code.code}```Redeem on the [website](https://shift.gearboxsoftware.com/rewards) or in game.')
     if code.source is not None:
         description += f'\n\n[Source]({code.source})'

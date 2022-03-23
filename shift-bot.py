@@ -1,61 +1,65 @@
 import discord
 import asyncio
 
+from typing import List, Set
+import os
 import re
 import traceback
 
-from shift.helper import log, get_shift_api_data, load_history, save_history, parse_manual_code, build_embed
-from shift.types import PostHistory, ShiftCode, ShiftDataUnavailableError
+from shift.helper import log, get_shift_api_data, load_guild_configs, load_history, save_history, parse_manual_code, \
+    build_embed
+from shift.types import GuildConfig, PostHistory, ShiftCode, ShiftDataUnavailableError
 
-
-BORDERLANDS_GUILD_ID = 132671445376565248
-COMMAND_CHANNEL_ID = 556796818600755229
-NEWS_CHANNEL_ID = 563699841377763348
-NEWS_ROLE_ID = 624528614330859520
 
 # Every 15 minutes
 UPDATE_DELAY = 900
 
 
 class ShiftBot(discord.Client):
+    __guild_configs: List[GuildConfig]
     __history: PostHistory
-    __api_responsive: bool
 
-    __news_channel: discord.TextChannel
+    __api_responsive: bool
+    __guilds_ready: Set[int]
     __update_codes_task: asyncio.Task
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, guild_configs: List[GuildConfig], history: PostHistory, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.__history = load_history()
+        self.__guild_configs = guild_configs
+        self.__history = history
+
         self.__api_responsive = True
+        self.__guilds_ready = set()
 
     async def on_guild_available(self, guild):
-        if guild.id == BORDERLANDS_GUILD_ID:
-            self.__news_channel = self.get_channel(NEWS_CHANNEL_ID)
+        self.__guilds_ready.add(guild.id)
+        log(f'Guild ID {guild.id} ready.')
+
+        guild_config_ids = set(config.guild_id for config in self.__guild_configs)
+        if guild_config_ids <= self.__guilds_ready:
             self.__update_codes_task = self.loop.create_task(self.__update_codes_loop())
 
     async def on_message(self, message: discord.Message):
-        if message.channel.id != COMMAND_CHANNEL_ID:
+        guild_config = next((config for config in self.__guild_configs
+                             if message.channel.id == config.command_channel_id), None)
+        if not guild_config:
             return
+
         command = [''.join(match) for match in re.findall(r'"(.+?)"|(\S+)', message.content)]
 
         try:
             if len(command) >= 6 and command[0] == '$post':
-                await self.__post_code(parse_manual_code(command[1:]))
-
-                save_history(self.__history)
+                await self.__post_code(guild_config, parse_manual_code(command[1:]))
             elif len(command) >= 7 and command[0] == '$edit':
-                post = await self.__news_channel.fetch_message(int(command[1]))
-                if post is None:
-                    message.channel.send("Post ID does not exist.")
-                    return
-
-                await self.__edit_code(post, parse_manual_code(command[2:]))
-
-                save_history(self.__history)
+                await self.__edit_code(guild_config, int(command[1]), parse_manual_code(command[2:]))
+            else:
+                return
         except ValueError:
-            await message.channel.send("Arguments in unrecognised format.")
+            await message.channel.send('Arguments in unrecognised format.')
+            return
+
+        save_history(self.__history)
 
     async def __update_codes_loop(self):
         await self.wait_until_ready()
@@ -87,20 +91,37 @@ class ShiftBot(discord.Client):
             self.__api_responsive = True
 
         for code in data.codes:
-            if not (code.time_added < self.__history.start_time or code.code in self.__history.codes):
-                await self.__post_code(code)
+            if code.time_added < self.__history.start_time or code.code in self.__history.codes:
+                continue
+
+            guild_config = next((config for config in self.__guild_configs
+                                 if re.search(config.game_pattern, code.game)), None)
+            if not guild_config:
+                continue
+
+            await self.__post_code(guild_config, code)
 
         save_history(self.__history)
 
-    async def __post_code(self, code: ShiftCode):
-        message = await self.__news_channel.send(embed=build_embed(code))
+    async def __post_code(self, guild_config: GuildConfig, code: ShiftCode):
+        news_channel = self.get_channel(guild_config.news_channel_id)
+
+        message = await news_channel.send(embed=build_embed(guild_config.embed_emoji, code))
         await message.publish()
-        await self.__news_channel.send(f'<@&{NEWS_ROLE_ID}>')
+        await news_channel.send(f'<@&{guild_config.news_role_id}>')
 
         self.__history.codes.add(code.code)
 
-    async def __edit_code(self, message: discord.Message, code: ShiftCode):
-        await message.edit(embed=build_embed(code))
+    async def __edit_code(self, guild_config: GuildConfig, message_id: int, code: ShiftCode):
+        news_channel = self.get_channel(guild_config.news_channel_id)
+        command_channel = self.get_channel(guild_config.command_channel_id)
+
+        post = await news_channel.fetch_message(message_id)
+        if post is None:
+            command_channel.send('Post ID does not exist.')
+            return
+
+        await post.edit(embed=build_embed(guild_config.embed_emoji, code))
 
         self.__history.codes.add(code.code)
 
@@ -111,7 +132,14 @@ def main():
         log('API key must be specified as SHIFT_BOT_API_KEY environment variable.')
         return
 
-    client = ShiftBot()
+    guild_configs = load_guild_configs()
+    if not guild_configs:
+        log('At least one guild must be specified in guild_configs.json.')
+        return
+
+    history = load_history()
+
+    client = ShiftBot(guild_configs, history)
     client.run(api_key)
 
 

@@ -1,11 +1,38 @@
 from typing import Set, Optional, List
-
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import jsonschema
 import json
 
-from shift.schema import POST_HISTORY_SCHEMA, SHIFT_API_DATA_SCHEMA, SHIFT_API_METADATA_SCHEMA, SHIFT_API_CODE_SCHEMA
+from shift.schema import GUILD_CONFIG_SCHEMA, POST_HISTORY_SCHEMA, SHIFT_API_DATA_SCHEMA, SHIFT_API_METADATA_SCHEMA, \
+    SHIFT_API_CODE_SCHEMA
+
+
+@dataclass
+class GuildConfig:
+    game_pattern: str
+
+    guild_id: int
+    command_channel_id: int
+    news_channel_id: int
+    news_role_id: int
+    embed_emoji: str
+
+    @staticmethod
+    def parse_json(data) -> 'GuildConfig':
+        try:
+            jsonschema.validate(data, GUILD_CONFIG_SCHEMA)
+        except jsonschema.ValidationError as e:
+            raise GuildConfigsInvalidError from e
+
+        return GuildConfig(
+            game_pattern=data['game_pattern'],
+            guild_id=data['guild_id'],
+            command_channel_id=data['command_channel_id'],
+            news_channel_id=data['news_channel_id'],
+            news_role_id=data['news_role_id'],
+            embed_emoji=data['embed_emoji']
+        )
 
 
 class PostHistory:
@@ -106,12 +133,15 @@ class ShiftData:
         except jsonschema.ValidationError as e:
             raise ShiftDataInvalidError from e
 
-        raw_codes = [ShiftCode.parse_json(code_json) for code_json in data['codes']]
-
         return ShiftData(
             metadata=ShiftMetadata.parse_json(data['meta']),
-            codes=[code for code in raw_codes if code.game.startswith('Borderlands')]
+            codes=[ShiftCode.parse_json(code_json) for code_json in data['codes']]
         )
+
+
+class GuildConfigsInvalidError(Exception):
+    def __init__(self, message='Guild configs format was incorrect. Repair.', *args, **kwargs):
+        super().__init__(message, args, kwargs)
 
 
 class PostHistoryInvalidError(Exception):
